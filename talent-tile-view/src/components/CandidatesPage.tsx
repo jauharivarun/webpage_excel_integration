@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useState } from "react";
 import {
   Search,
   Download,
@@ -8,7 +8,6 @@ import {
   Upload,
   RefreshCw,
   AlertCircle,
-  ClipboardList,
   Eye,
   Copy,
   Phone,
@@ -30,7 +29,7 @@ import { SkillTag } from "@/components/SkillTag";
 import { CandidateDetail } from "@/components/CandidateDetail";
 import { ImportReviewDialog } from "@/components/ImportReviewDialog";
 import type { Candidate } from "@/data/candidates";
-import { deleteCandidate, fetchCandidates, importCandidatesXlsx } from "@/lib/api";
+import { deleteCandidate, fetchCandidates } from "@/lib/api";
 import { linkedinHref } from "@/lib/urls";
 import { toast } from "sonner";
 
@@ -81,12 +80,11 @@ const EXPERIENCE_BANDS: { id: ExperienceBand; label: string; match: (years: numb
 
 export function CandidatesPage() {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [experienceBand, setExperienceBand] = useState<ExperienceBand>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [active, setActive] = useState<Candidate | null>(null);
-  const [reviewOpen, setReviewOpen] = useState(false);
+  const [importReviewOpen, setImportReviewOpen] = useState(false);
 
   const {
     data: candidates = [],
@@ -98,22 +96,6 @@ export function CandidatesPage() {
   } = useQuery({
     queryKey: ["candidates"],
     queryFn: fetchCandidates,
-  });
-
-  const importMutation = useMutation({
-    mutationFn: importCandidatesXlsx,
-    onSuccess: (res) => {
-      toast.success(
-        `Saved: ${res.inserted} new, ${res.updated} updated, ${res.skipped} skipped.`,
-      );
-      if (res.errors.length) {
-        toast.message("Some rows had parse issues", { description: res.errors.slice(0, 3).join("\n") });
-      }
-      void queryClient.invalidateQueries({ queryKey: ["candidates"] });
-    },
-    onError: (e: Error) => {
-      toast.error(e.message || "Import failed");
-    },
   });
 
   const deleteMutation = useMutation({
@@ -208,31 +190,12 @@ export function CandidatesPage() {
     toast.success(`Exported ${rows.length} candidate${rows.length === 1 ? "" : "s"}`);
   };
 
-  const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    if (!/\.(xlsx|xlsm)$/i.test(f.name)) {
-      toast.error("Please choose a .xlsx or .xlsm file.");
-      return;
-    }
-    importMutation.mutate(f);
-  };
-
   const displayCandidateCount = selected.size > 0 ? selected.size : filtered.length;
   const countCaption =
     selected.size > 0 ? `${selected.size} selected` : "Matching current filters";
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        className="sr-only"
-        onChange={onFileChange}
-      />
-
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Candidates</h1>
@@ -250,17 +213,9 @@ export function CandidatesPage() {
             <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importMutation.isPending}
-          >
+          <Button variant="secondary" onClick={() => setImportReviewOpen(true)} title="Analyze, edit, then save">
             <Upload className="size-4" />
-            {importMutation.isPending ? "Importing…" : "Import Excel"}
-          </Button>
-          <Button variant="outline" onClick={() => setReviewOpen(true)}>
-            <ClipboardList className="size-4" />
-            Review import
+            Import Excel
           </Button>
         </div>
       </header>
@@ -503,7 +458,7 @@ export function CandidatesPage() {
                     {isError
                       ? "Fix the API connection, then retry."
                       : candidates.length === 0
-                        ? "No candidates yet. Import an Excel file."
+                        ? "No candidates yet. Use Import Excel to analyze the sheet, review rows, then commit."
                         : "No candidates match your search or experience filter."}
                   </td>
                 </tr>
@@ -516,8 +471,8 @@ export function CandidatesPage() {
       <CandidateDetail candidate={active} onClose={() => setActive(null)} />
 
       <ImportReviewDialog
-        open={reviewOpen}
-        onOpenChange={setReviewOpen}
+        open={importReviewOpen}
+        onOpenChange={setImportReviewOpen}
         onCommitted={() => void queryClient.invalidateQueries({ queryKey: ["candidates"] })}
       />
     </div>

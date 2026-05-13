@@ -34,20 +34,6 @@ export async function fetchCandidates(): Promise<CandidateDto[]> {
   return r.json();
 }
 
-export async function importCandidatesXlsx(file: File): Promise<ImportResultDto> {
-  const body = new FormData();
-  body.append("file", file);
-  const r = await fetch(`${getApiBase()}/api/candidates/import`, {
-    method: "POST",
-    body,
-  });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(t || `HTTP ${r.status}`);
-  }
-  return r.json();
-}
-
 export type ValidationIssueDto = {
   code: string;
   severity: "error" | "warning" | "info";
