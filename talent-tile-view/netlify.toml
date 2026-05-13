@@ -1,0 +1,7 @@
+# Netlify sets NETLIFY=true during build — see vite.config.ts for the TanStack Start adapter.
+[build]
+  command = "npm run build"
+  publish = "dist/client"
+
+[build.environment]
+  NODE_VERSION = "22"
